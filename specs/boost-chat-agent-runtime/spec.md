@@ -22,7 +22,12 @@ LCore SHALL host the execution/handoff controller and Cloud Agents execution int
 - **THEN** execution rejects the unsupported capability and no second agent runs
 
 ### Requirement: Static sandbox lifecycle
-The runtime SHALL apply administrator-predefined spawn/image/spawner/resource/network/mount/cleanup settings. User or model input SHALL NOT change them. Required provisioning failure SHALL stop execution without unsandboxed fallback. Cleanup SHALL be attempted on every terminal outcome and failed cleanup SHALL be recorded for bounded reconciliation.
+Sandboxing SHALL be optional in static agent configuration and SHALL default to disabled. An omitted or disabled setting SHALL run the agent without provisioning a sandbox and SHALL NOT cause a configuration error or require spawner readiness. When sandboxing is enabled, the runtime SHALL apply administrator-predefined image/spawner/resource/network/mount/cleanup settings. User or model input SHALL NOT change them. Required provisioning failure SHALL stop execution without unsandboxed fallback. Sandbox cleanup SHALL be attempted on every terminal outcome only when sandbox resources were provisioned; failed cleanup SHALL be recorded for bounded reconciliation.
+
+#### Scenario: Default execution without sandbox
+
+- **WHEN** a valid agent omits sandbox settings or explicitly disables sandboxing
+- **THEN** the agent executes without sandbox provisioning and does not depend on a sandbox image or spawner
 
 #### Scenario: Spawn fixed environment
 

@@ -24,6 +24,11 @@ Inference/MCP/artifact/spawner destinations and credentials SHALL be deployment-
 ### Requirement: Dedicated supported installation
 The feature SHALL provide documented static/dynamic RHDH installation and a dedicated LCore/Cloud Agents deployment with PostgreSQL and required static dependencies. Readiness SHALL reflect required profile bindings. Disable/re-enable SHALL preserve saved history.
 
+#### Scenario: No sandbox dependency by default
+
+- **WHEN** a valid profile omits or disables sandboxing and no spawner is deployed
+- **THEN** absence of a spawner does not prevent readiness or execution
+
 #### Scenario: Missing required spawner
 
 - **WHEN** the static profile requires sandbox execution but its spawner is unavailable

@@ -7,13 +7,13 @@ RHDHPLAN-1644 scope revised 2026-10-20 for the RHDH 2.2 static single-agent MVP.
 - [ ] 1.1 Pin the LCore, OGX, OpenAI Agents SDK and Cloud Agents versions; record the one-step executor extension interface.
 - [ ] 1.2 Define the transient snapshot contract, model/tool/skill/sandbox binding schema and bounded agent-run request/event fixtures.
 - [ ] 1.3 Prove one Cloud Agents agent step using the LCore-owned SDK adapter and OGX without nested loops.
-- [ ] 1.4 Select snapshot-per-execution or startup publication for the MVP; specify the handshake and continuation behavior.
+- [ ] 1.4 Define per-run transfer for MVP and startup synchronization as a stretch goal; exclude dynamic reload/change pickup.
 - [ ] 1.5 Define trusted user identity, correlated events and current authorization checks without interactive approval.
 
 ## 2. RHDH native packages and adapter
 
 - [ ] 2.1 Create backend/common packages with native services, browser-safe contracts and schema declarations.
-- [ ] 2.2 Resolve one static authorized root and explicit limits; reject outgoing handoffs and unsupported profile capabilities.
+- [ ] 2.2 Resolve one static root and limits; default sandboxing off and missing allowedTools to all available tools; reject handoffs.
 - [ ] 2.3 Resolve model/default precedence and approved inference/MCP/tool/knowledge bindings.
 - [ ] 2.4 Resolve immutable skill artifacts and static sandbox policy; define backend credential binding translation.
 - [ ] 2.5 Build the per-run snapshot and test static binding validation, no secrets and no snapshot persistence in conversation history.
@@ -24,9 +24,9 @@ RHDHPLAN-1644 scope revised 2026-10-20 for the RHDH 2.2 static single-agent MVP.
 - [ ] 3.1 Add POST /v1/agents/run with dedicated request/response/event models; test static snapshot/revision validation, payload bounds and rejected definition overrides.
 - [ ] 3.2 Implement single-agent controller validation and reject any second agent or handoff request.
 - [ ] 3.3 Translate the profile into one schema-validated workflow step and a separate invocation envelope.
-- [ ] 3.4 Connect SDK tool dispatch to exact allowlist intersection; test permitted, extra global and revoked tools.
+- [ ] 3.4 Implement optional allowedTools filtering; test omission allows available tools, [] allows none, explicit lists and existing authorization.
 - [ ] 3.5 Materialize pinned skills and retrieval bindings in the actual execution filesystem.
-- [ ] 3.6 Wire configured sandbox creation, worker execution, cancellation and teardown; test fixed-image policy and no fallback.
+- [ ] 3.6 Wire default execution without sandbox and optional sandbox lifecycle; test omitted/disabled settings, enabled provisioning and failure without fallback.
 - [ ] 3.7 Record cleanup failure and provide bounded retry/reconciliation evidence.
 - [ ] 3.8 Stream correlated events and finalize persistent history before success.
 
@@ -45,7 +45,7 @@ RHDHPLAN-1644 scope revised 2026-10-20 for the RHDH 2.2 static single-agent MVP.
 - [ ] 5.2 Document PostgreSQL, dedicated LCore and pinned runtime dependencies plus migration/rollback order.
 - [ ] 5.3 Deploy and validate the static OpenShell gateway/worker profile where sandboxing is configured.
 - [ ] 5.4 Test model/MCP/artifact connectivity, TLS and credential handling from the actual issuing worker.
-- [ ] 5.5 Test restart continuation with freshly supplied configuration, allowed/denied tools, one-agent enforcement, sandbox cleanup and request retry.
+- [ ] 5.5 Test default unsandboxed execution without allowedTools, explicit filters, per-run restart continuation, optional sandbox cleanup and request retry.
 - [ ] 5.6 Run affected application checks and regenerate OpenAPI where wire schemas change.
 - [ ] 5.7 Add the target ADR and reconcile Boost CURRENT/frontend architecture only after implemented behavior is verified.
 - [ ] 5.8 Validate/promote the six capability specs on archive, preserving the append-only journal.
