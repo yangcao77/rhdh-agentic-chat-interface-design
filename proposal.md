@@ -1,11 +1,11 @@
 ## Why
 
-[RHDHPLAN-1644](https://redhat.atlassian.net/browse/RHDHPLAN-1644) needs a native RHDH 2.2 Boost backend for one static agent. Omitted settings default to available configured tools and no sandbox. RHDH owns configuration; LCore owns execution and persistent history.
+[RHDHPLAN-1644](https://redhat.atlassian.net/browse/RHDHPLAN-1644) needs a native RHDH 2.2 Boost backend for one static agent. Omitted allowedTools defaults to available configured tools; an omitted spawn mode uses the LCore/Cloud Agents default (currently `ephemeral`). RHDH owns configuration; LCore owns execution and persistent history.
 
 ## What Changes
 
 - Add native `agentic-chat-backend` and browser-safe `agentic-chat-common` packages using Backstage services.
-- Retain the AI Catalog OpenAI Agents SDK agent schema, adding optional per-agent `useSandbox` defaulting to false. Send one predefined agent snapshot with static model, tool/MCP, skill, knowledge, limit and sandbox configuration; do not discover agents or traverse handoff targets.
+- Retain the AI Catalog OpenAI Agents SDK agent schema, adding optional per-agent `spawn` (`"none"`, `"local"` or `"ephemeral"`), passed through to LCore unchanged so omission uses the LCore/Cloud Agents default. Send one predefined agent snapshot with static model, tool/MCP, skill, knowledge, limit and sandbox configuration; do not discover agents or traverse handoff targets.
 - Send the resolved configuration with every execution for the MVP; startup synchronization using the same contract is a stretch goal. No dynamic reload or change pickup.
 - Add new LCore `POST /v1/agents/run` as the agent execution controller API, accepting typed static execution configuration and a turn invocation envelope.
 - LCore hosts the execution/handoff controller and Cloud Agents integration. For 2.2, dispatch exactly one agent and reject cross-agent transitions.
@@ -20,7 +20,7 @@
 
 ### New Capabilities
 
-- `boost-chat-rhdh-backend`: native packages, Catalog/useSandbox, run/history routes, authorization and integrated LCore/Cloud Agents configuration for persistence, credentials, RBAC and optional sandbox infrastructure.
+- `boost-chat-rhdh-backend`: native packages, Catalog/spawn, run/history routes, authorization and integrated LCore/Cloud Agents configuration for persistence, credentials, RBAC and optional sandbox infrastructure.
 - `boost-chat-lcore-cloud-agents`: controller/workflow dispatch, SDK executor, tools/sandbox policy, streaming and authoritative history.
 - `boost-chat-deployment`: packaging, installation and deployed verification using backend-owned configuration, plus consolidated documentation.
 

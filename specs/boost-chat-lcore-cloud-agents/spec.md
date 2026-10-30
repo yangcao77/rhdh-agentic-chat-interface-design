@@ -76,17 +76,22 @@ The executor SHALL enforce allowedTools at both tool exposure and dispatch. Omis
 - **WHEN** the worker uses configured skills, MCP or retrieval services
 - **THEN** resource materialization, connectivity, TLS and scoped authentication are verified from that worker, and missing resources or execution failures are reported safely
 
-### Requirement: Explicit useSandbox translation and lifecycle
-LCore SHALL consume the resolved per-agent useSandbox boolean and default omission to false. False SHALL explicitly select unsandboxed workflow execution without depending on a sandbox image, spawner or gateway. True SHALL select the administrator-predefined sandbox profile; Cloud Agents SHALL provision it before the agent executes and attempt cleanup after success, failure or cancellation, including partial provisioning. User/model input SHALL NOT change the image, resources, mounts, network or permissions. Provisioning failure SHALL stop the run without unsandboxed fallback. Cleanup failure SHALL record environment identity and a bounded retry or reconciliation obligation.
+### Requirement: Spawn mode translation and lifecycle
+LCore SHALL accept the resolved per-agent spawn mode as Optional[Literal["none", "local", "ephemeral"]] = None and set it on the one workflow step unchanged. Omission SHALL leave the step spawn unset so the Cloud Agents default (currently "ephemeral") applies. "none" and "local" SHALL select unsandboxed execution without depending on a sandbox image, spawner or gateway; because LCore restricts these modes to admin principals, the RHDH service identity SHALL be authorized for them or the run SHALL be denied before execution. "ephemeral" SHALL select the administrator-predefined sandbox profile; Cloud Agents SHALL provision it before the agent executes and attempt cleanup after success, failure or cancellation, including partial provisioning. User/model input SHALL NOT change the image, resources, mounts, network or permissions. Provisioning failure SHALL stop the run without unsandboxed fallback. Cleanup failure SHALL record environment identity and a bounded retry or reconciliation obligation.
 
-#### Scenario: Default false despite executor defaults
+#### Scenario: Unsandboxed spawn mode
 
-- **WHEN** useSandbox is false or omitted while the Cloud Agents package defaults an omitted spawn mode to ephemeral
-- **THEN** translation explicitly selects the supported unsandboxed mode and no sandbox is provisioned
+- **WHEN** spawn is "none" or "local"
+- **THEN** translation selects that mode, no sandbox is provisioned and no spawner or gateway is required
+
+#### Scenario: Omitted spawn mode
+
+- **WHEN** spawn is omitted
+- **THEN** translation leaves the step spawn unset, the Cloud Agents default applies and, while that default is "ephemeral", a configured spawner is required
 
 #### Scenario: Sandbox required
 
-- **WHEN** useSandbox is true
+- **WHEN** spawn is "ephemeral", set or defaulted
 - **THEN** the approved sandbox is provisioned before execution and cleanup is attempted on every terminal outcome
 
 #### Scenario: Provisioning or cleanup failure
@@ -164,6 +169,6 @@ LCore SHALL validate trusted service identity and forwarded user identity indepe
 ## Investigation inputs
 
 - [Harness workflow endpoint](https://github.com/jameswnl/lightspeed-stack/blob/f2d5911092d4591c2c6766b38c7c38a8aaa56915/src/app/endpoints/workflows.py) and [request model](https://github.com/jameswnl/lightspeed-stack/blob/f2d5911092d4591c2c6766b38c7c38a8aaa56915/src/models/api/requests/agents.py): the observed creation path is /v1/workflows/run. Confirm shared dispatch, workflow streaming/status/cancel contracts and authorization without assuming a singular /v1/workflow endpoint exists.
-- [Cloud Agents executor dispatch](https://github.com/jameswnl/lightspeed-cloud-agents/blob/1788b17d84420ca07c8df423a460bcae5b369f66/src/cloud_agents/workflow/executor/step/dispatch.py) currently defaults spawn to ephemeral; spawn none selects the direct executor. [The direct executor](https://github.com/jameswnl/lightspeed-cloud-agents/blob/1788b17d84420ca07c8df423a460bcae5b369f66/src/cloud_agents/workflow/executor/step/direct.py) uses Pydantic AI. Prove the required SDK adapter and both sandbox paths rather than treating this as delivered support.
+- [Cloud Agents executor dispatch](https://github.com/jameswnl/lightspeed-cloud-agents/blob/1788b17d84420ca07c8df423a460bcae5b369f66/src/cloud_agents/workflow/executor/step/dispatch.py) currently defaults spawn to ephemeral; spawn none selects the direct executor. [The direct executor](https://github.com/jameswnl/lightspeed-cloud-agents/blob/1788b17d84420ca07c8df423a460bcae5b369f66/src/cloud_agents/workflow/executor/step/direct.py) uses Pydantic AI. Prove the required SDK adapter for all three spawn modes rather than treating this as delivered support.
 - [Conversation metadata](https://github.com/jameswnl/lightspeed-stack/blob/f2d5911092d4591c2c6766b38c7c38a8aaa56915/src/models/database/conversations.py): completed_at, provider and model are currently non-null on turns. Finalize additive migrations, active-turn representation, owner-scoped API mapping and one authoritative context source.
 - Verify transient credential delivery against workflow persistence before enabling forwarding. Startup configuration synchronization and optional intermediate-output/thought-process history storage remain stretch goals outside MVP acceptance.

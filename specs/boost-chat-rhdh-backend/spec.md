@@ -12,26 +12,26 @@ RHDH SHALL provide plugins/agentic-chat-backend and browser-safe plugins/agentic
 - **WHEN** agentic-chat-backend is registered in RHDH
 - **THEN** the frontend can use its typed execution and history routes without loading an execution SDK in the browser
 
-### Requirement: Optional per-agent sandbox flag
-The AI Catalog agent entity TypeScript contract and JSON schema SHALL add optional spec.useSandbox of boolean type while retaining the current OpenAI Agents SDK integration fields. The authoring/provider path SHALL preserve the field through Catalog ingestion. Omission SHALL mean false. True SHALL require execution using an administrator-predefined sandbox profile; false SHALL request execution without sandbox provisioning. The flag SHALL NOT permit callers to select sandbox images or permissions.
+### Requirement: Optional per-agent spawn mode
+The AI Catalog agent entity TypeScript contract and JSON schema SHALL add optional spec.spawn restricted to "none", "local" or "ephemeral", matching the LCore workflow step type Optional[Literal["none", "local", "ephemeral"]] = None, while retaining the current OpenAI Agents SDK integration fields. The authoring/provider path SHALL preserve the field through Catalog ingestion. Omission SHALL remain unset in the execution snapshot so LCore applies its default. "none" SHALL request execution in the LCore process and "local" in a child process, both without sandbox provisioning; "ephemeral" SHALL require execution using the administrator-predefined sandbox profile. The field SHALL NOT permit callers to select sandbox images or permissions.
 
-#### Scenario: Existing agent without sandbox flag
+#### Scenario: Existing agent without spawn mode
 
-- **WHEN** an existing agent entity omits useSandbox
-- **THEN** it remains valid and its execution snapshot resolves useSandbox to false
+- **WHEN** an existing agent entity omits spawn
+- **THEN** it remains valid and its execution snapshot leaves spawn unset for LCore to resolve
 
-#### Scenario: Explicit sandbox choice
+#### Scenario: Explicit spawn mode
 
-- **WHEN** an administrator configures useSandbox as true or false for an agent
-- **THEN** Catalog ingestion and backend resolution preserve that boolean in the execution snapshot
+- **WHEN** an administrator configures spawn as "none", "local" or "ephemeral" for an agent
+- **THEN** Catalog ingestion and backend resolution preserve that value in the execution snapshot
 
-#### Scenario: Invalid flag type
+#### Scenario: Invalid spawn value
 
-- **WHEN** useSandbox is a string or another non-boolean value
+- **WHEN** spawn is a boolean, another string or any value outside the three modes
 - **THEN** entity validation rejects that value instead of coercing it
 
 ### Requirement: Authorized static entity resolution
-The run router SHALL read one predefined agent from the RHDH Catalog using authorized backend access. It SHALL extract the selected identity, instructions, available model/model settings, configured tools/MCP bindings, skills, knowledge, limits, output mapping, optional allowedTools and useSandbox needed by LCore and Cloud Agents. It SHALL preserve existing agent schema semantics and resolve administrator defaults and runtime-reachable references where available. It SHALL reject handoffs, discovery and caller-authored capability overrides. Missing model, skill or tool bindings alone SHALL NOT cause configuration rejection or creation of replacement bindings.
+The run router SHALL read one predefined agent from the RHDH Catalog using authorized backend access. It SHALL extract the selected identity, instructions, available model/model settings, configured tools/MCP bindings, skills, knowledge, limits, output mapping, optional allowedTools and spawn needed by LCore and Cloud Agents. It SHALL preserve existing agent schema semantics and resolve administrator defaults and runtime-reachable references where available. It SHALL reject handoffs, discovery and caller-authored capability overrides. Missing model, skill or tool bindings alone SHALL NOT cause configuration rejection or creation of replacement bindings.
 
 #### Scenario: Agent selected by entity reference
 
@@ -178,7 +178,7 @@ The backend workstream SHALL supply Kubernetes/OpenShift Secret or supported ext
 - **THEN** runtime authentication fails safely or resumes through the configured rotation mechanism without credential disclosure or unauthenticated fallback
 
 ### Requirement: Group and agent configuration examples
-The backend workstream SHALL supply RHDH RBAC examples mapping operator-selected Catalog groups to the registered chat-use and history permissions, including cancellation/deletion coverage. Group examples SHALL use placeholders rather than grant access to every authenticated user. Agent examples SHALL demonstrate omitted, false and true useSandbox values. Group grants SHALL preserve LCore service authorization, Catalog access and owner isolation.
+The backend workstream SHALL supply RHDH RBAC examples mapping operator-selected Catalog groups to the registered chat-use and history permissions, including cancellation/deletion coverage. Group examples SHALL use placeholders rather than grant access to every authenticated user. Agent examples SHALL demonstrate omitted spawn and each of "none", "local" and "ephemeral". Group grants SHALL preserve LCore service authorization, Catalog access and owner isolation.
 
 #### Scenario: Group configuration applied
 
@@ -187,15 +187,15 @@ The backend workstream SHALL supply RHDH RBAC examples mapping operator-selected
 
 #### Scenario: Agent sandbox configuration examples
 
-- **WHEN** the supplied examples omit useSandbox or set it to false or true
-- **THEN** omitted/false selects unsandboxed execution and true selects only the predefined sandbox profile
+- **WHEN** the supplied examples omit spawn or set it to "none", "local" or "ephemeral"
+- **THEN** "none" and "local" select unsandboxed execution, "ephemeral" selects only the predefined sandbox profile, and omission resolves to the LCore default
 
 ### Requirement: Optional sandbox infrastructure configuration
-The backend workstream SHALL supply the approved gateway/worker image, service-account and resource/network/mount/cleanup configuration when an agent requires sandboxing. Settings SHALL remain administrator-defined and enforceable from the actual execution worker. The configuration SHALL support provisioning-failure handling without unsandboxed fallback and observable cleanup failure with bounded reconciliation. The LCore/Cloud Agents workstream SHALL implement the provisioning and cleanup lifecycle; the installation workstream SHALL apply the supplied infrastructure configuration.
+The backend workstream SHALL supply the approved gateway/worker image, service-account and resource/network/mount/cleanup configuration when an agent sets or defaults to spawn "ephemeral". Settings SHALL remain administrator-defined and enforceable from the actual execution worker. The configuration SHALL support provisioning-failure handling without unsandboxed fallback and observable cleanup failure with bounded reconciliation. The LCore/Cloud Agents workstream SHALL implement the provisioning and cleanup lifecycle; the installation workstream SHALL apply the supplied infrastructure configuration.
 
 #### Scenario: Sandbox-enabled agent configured
 
-- **WHEN** an agent sets useSandbox true
+- **WHEN** an agent sets spawn "ephemeral" or omits spawn while the LCore default is "ephemeral"
 - **THEN** the supplied profile identifies the approved infrastructure and credentials needed for worker connectivity and statically enforced permissions
 
 #### Scenario: Sandbox gateway unavailable
@@ -205,7 +205,7 @@ The backend workstream SHALL supply the approved gateway/worker image, service-a
 
 ## Investigation inputs
 
-- [AI Catalog agent model](https://github.com/redhat-developer/rhdh-plugins/tree/main/workspaces/ai-integrations/plugins/catalog-model-ai-resource-agent): confirm the schema, TypeScript type, validator tests and every provider mapping that must preserve spec.useSandbox.
+- [AI Catalog agent model](https://github.com/redhat-developer/rhdh-plugins/tree/main/workspaces/ai-integrations/plugins/catalog-model-ai-resource-agent): confirm the schema, TypeScript type, validator tests and every provider mapping that must preserve spec.spawn.
 - [Intelligent Assistant router](https://github.com/redhat-developer/rhdh-plugins/blob/b1c2c39bbd7dac6dc4c1eb5f180bd7117acba696/workspaces/intelligent-assistant/plugins/intelligent-assistant-backend/src/service/router.ts), [permissions](https://github.com/redhat-developer/rhdh-plugins/blob/b1c2c39bbd7dac6dc4c1eb5f180bd7117acba696/workspaces/intelligent-assistant/plugins/intelligent-assistant-common/src/permissions.ts) and [RBAC policy](https://github.com/redhat-developer/rhdh-plugins/blob/b1c2c39bbd7dac6dc4c1eb5f180bd7117acba696/workspaces/intelligent-assistant/rbac-policy.csv): reuse the authenticated history/proxy and group-to-role patterns; finalize agentic-chat permission names, route schemas, cancellation/deletion mapping and pagination before implementation.
 - [Intelligent Assistant configuration repository](https://github.com/redhat-developer/rhdh-intelligent-assistant-configs) and [harness secret examples](https://github.com/jameswnl/lightspeed-stack/blob/f2d5911092d4591c2c6766b38c7c38a8aaa56915/examples/workflows/k8s-secrets.yaml): select the backend-owned configuration location, runtime image/package bindings, PostgreSQL settings, service trust, secret provisioning/rotation, RBAC examples and optional sandbox infrastructure configuration. Development library-mode/noop/SQLite examples do not establish production authentication or persistence.
 - Coordinate service authentication, forwarded identity and transient token handling with the LCore workstream; provide the resulting configuration artifacts to installation and consolidated documentation. Verify actual backend/worker access and persistence behavior before enabling credential forwarding.

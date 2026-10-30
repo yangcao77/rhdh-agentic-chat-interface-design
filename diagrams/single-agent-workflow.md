@@ -5,9 +5,9 @@ flowchart TD
   Q[User query and conversation ID] --> R[RHDH authenticates and resolves static agent profile]
   R --> C[LCore POST /v1/agents/run validates configuration and current access]
   C --> P[Create logical turn and load authoritative history]
-  P --> B{Sandbox enabled in agent configuration}
-  B -->|No or omitted - default| A[Cloud Agents workflow runs]
-  B -->|Yes| S[Provision predefined sandbox]
+  P --> B{Agent spawn mode}
+  B -->|none or local| A[Cloud Agents workflow runs]
+  B -->|ephemeral or omitted - LCore default| S[Provision predefined sandbox]
   S -->|Provisioned| A
   S -->|Provisioning failed| E[Record correlated failure]
   A --> D{Model result}
@@ -22,4 +22,4 @@ flowchart TD
   H --> U[Return final outcome through RHDH]
 ```
 
-Configuration validation accepts missing model, skill or tool bindings without inventing capabilities. An unavailable capability needed during execution produces a safe runtime failure. An enabled sandbox that cannot be provisioned stops the run without an unsandboxed fallback.
+Configuration validation accepts missing model, skill or tool bindings without inventing capabilities. An unavailable capability needed during execution produces a safe runtime failure. A sandbox (spawn `ephemeral`, set or defaulted) that cannot be provisioned stops the run without an unsandboxed fallback.

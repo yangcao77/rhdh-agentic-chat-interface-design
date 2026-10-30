@@ -6,7 +6,7 @@ RHDH 2.2 single agent MVP | Clarified 28 October 2026
 
 RHDHPLAN-1644 delivers the RHDH 2.2 chat execution boundary. RHDH owns static AI Catalog configuration and the native Boost frontend adapter. LCore owns the execution controller, the OGX/OpenAI Agents SDK integration and persistent conversation history. Cloud Agents executes a predefined one-agent workflow under LCore control.
 
-The intended MVP profile executes one agent with an explicit allowed tools list. Omission of allowedTools remains valid and allows all tools available through the agent's configured tool/MCP bindings; an explicit list restricts them and an empty list allows none. Sandboxing defaults to disabled and can be enabled in static agent configuration. Model bindings, prompts, skills, MCP connections, limits and any sandbox settings are predefined by administrators. Runtime identifiers, including workflow run ID, and the user query vary per turn; executable definitions and capabilities do not.
+The intended MVP profile executes one agent with an explicit allowed tools list. Omission of allowedTools remains valid and allows all tools available through the agent's configured tool/MCP bindings; an explicit list restricts them and an empty list allows none. The static agent configuration may set spawn to `none`, `local` or `ephemeral`; omission uses the LCore default, currently `ephemeral` (sandboxed). Model bindings, prompts, skills, MCP connections, limits and any sandbox settings are predefined by administrators. Runtime identifiers, including workflow run ID, and the user query vary per turn; executable definitions and capabilities do not.
 
 **Out of scope.** Agent discovery, human-in-the-loop interaction, cross-agent handoffs, multiple execution backends, generated workflow definitions and user/model changes to sandbox settings. A sandbox provisioned from a static profile is in scope; dynamically choosing its image or permissions is not.
 
@@ -30,7 +30,7 @@ The intended MVP profile executes one agent with an explicit allowed tools list.
 
 **D5 Static configuration transfer.** RHDH owns static configuration and sends the resolved agent profile with every execution, including continued conversations. LCore constructs the Cloud Agents workflow. Startup synchronization using the same configuration contract is a stretch goal. Dynamic configuration changes, hot reload and change pickup are out of scope.
 
-**Failure boundary.** An omitted sandbox setting or allowedTools setting is valid. By default the agent runs without a sandbox and may use all available configured tools. Missing model, skill or tool bindings do not cause configuration rejection. If sandboxing is explicitly enabled, provisioning failure stops that run without silently changing its execution mode.
+**Failure boundary.** An omitted spawn or allowedTools setting is valid. By default the agent runs in the LCore default spawn mode (currently `ephemeral`) and may use all available configured tools. Missing model, skill or tool bindings do not cause configuration rejection. If the resolved spawn mode is `ephemeral`, provisioning failure stops that run without silently changing its execution mode.
 
 Accepting missing bindings does not create capabilities or guarantee a successful run. Use administrator-defined defaults where available; if execution needs an unavailable model, skill or tool, report a safe runtime failure without inventing or substituting a binding.
 
@@ -42,9 +42,9 @@ The Boost configuration example defines agents under ai-catalog.entityProviders.
 
 **MVP root.** Select one predefined agent with no outgoing handoffs, for example the HR specialist in the example. The sample router with specialist dependencies is not an MVP execution profile. Reject a selected agent requiring handoffs; do not silently drop its targets or traverse the graph.
 
-**Configuration adapter.** Resolve the selected agent through authorized Catalog access, retaining the current OpenAI Agents SDK integration schema. Preserve root identity, limits, prompt and available model, tools/MCP bindings, skill artifacts and required knowledge bindings. Preserve the difference between an omitted allowedTools field, a populated list and an empty list. Resolve sandbox enablement from static agent configuration, defaulting to disabled. Send the resolved profile to LCore for workflow construction without rejecting missing model, skill or tool bindings.
+**Configuration adapter.** Resolve the selected agent through authorized Catalog access, retaining the current OpenAI Agents SDK integration schema. Preserve root identity, limits, prompt and available model, tools/MCP bindings, skill artifacts and required knowledge bindings. Preserve the difference between an omitted allowedTools field, a populated list and an empty list. Resolve the optional spawn mode from static agent configuration and leave it unset when omitted. Send the resolved profile to LCore for workflow construction without rejecting missing model, skill or tool bindings.
 
-**Configuration gaps.** Current agent entities do not carry provider-level defaultAgent and maxAgentTurns. Supply static profile bindings for root and limits, optional allowedTools, and optional sandbox enablement/settings. Skills, credentials and sandbox policy need declared schemas and executable bindings rather than assumed agent entity fields. Exact new field names remain a contract implementation gate.
+**Configuration gaps.** Current agent entities do not carry provider-level defaultAgent and maxAgentTurns. Supply static profile bindings for root and limits, optional allowedTools, and optional spawn mode/sandbox settings. Skills, credentials and sandbox policy need declared schemas and executable bindings rather than assumed agent entity fields. Exact new field names remain a contract implementation gate.
 
 **Model resolution.** Resolve environment expressions in RHDH. Use the agent model when set, otherwise an explicit approved default where available. Neither RHDH nor LCore configuration validation rejects the agent solely because a model binding is absent. Send concrete bindings when available, not environment syntax or browser-provided credentials. If no usable model is available when inference is attempted, report a safe runtime failure.
 
@@ -64,7 +64,7 @@ The Boost configuration example defines agents under ai-catalog.entityProviders.
 
 **Skills and knowledge.** Represent selected skills by immutable artifact digest/revision and required resource paths. LCore or its worker retrieves them from an approved Git/OCI/artifact service and stages SKILL.md and resources into the execution filesystem. An RHDH-local path or usage command is insufficient. Resolve configured knowledge flags into an approved retrieval binding where available. Missing skill or tool bindings do not cause configuration rejection.
 
-**Static sandbox profile.** Sandboxing is optional and defaults to disabled. A static agent configuration may enable it and define image, spawner, timeouts, resources, mounts, network and cleanup policy. Disabled or omitted sandboxing runs the agent without provisioning a sandbox and requires no spawner readiness. When enabled, Cloud Agents provisions the environment and cleans it up on success, failure or cancellation; provisioning and cleanup failures retain their defined outcomes.
+**Static sandbox profile.** Spawn `none` or `local` runs the agent without provisioning a sandbox and requires no spawner readiness. Spawn `ephemeral`, set or defaulted, uses administrator-defined image, spawner, timeouts, resources, mounts, network and cleanup policy. In that case Cloud Agents provisions the environment and cleans it up on success, failure or cancellation; provisioning and cleanup failures retain their defined outcomes.
 
 **SDK and sandbox placement.** The LCore-owned SDK adapter supports execution without a sandbox and execution in the configured sandbox worker. Both paths use one agent loop and the same optional tool filter. Sandboxed workers need the compatible adapter or approved runner binding. Verify both executor paths against the pinned package; resource/network constraints may require gateway deployment settings.
 
@@ -88,7 +88,7 @@ The following is the adapter input checklist, not a claim that a complete execut
 
 **Capabilities.** Configured tools/MCP bindings and schemas, optional allowedTools with omission versus empty-list semantics preserved, authentication bindings, skill artifact digests/resource paths and any approved retrieval configuration.
 
-**Bounds and spawn.** One agent invocation per turn with model/tool/token/time limits. Sandbox enablement defaults to false. Image/spawner/resource/network/mount/cleanup settings apply only when enabled. Omission of sandbox settings is valid and requires no provisioning.
+**Bounds and spawn.** One agent invocation per turn with model/tool/token/time limits. Spawn is optional; omission uses the LCore default, currently `ephemeral`. Image/spawner/resource/network/mount/cleanup settings apply only to `ephemeral`. Spawn `none` or `local` requires no provisioning.
 
 **Invocation envelope.** User input, authenticated owner, conversation ID, request/turn ID, workflow run ID, saved context and trace correlation. These are runtime values and must not alter the static executable definition. Distinguish the workflow run ID from both static definition identity and chat conversation ID; exact wire field names remain an integration gate.
 
@@ -96,7 +96,7 @@ The following is the adapter input checklist, not a claim that a complete execut
 
 **Agent execution controller API.** Add a new POST /v1/agents/run endpoint with dedicated request, response and event models. Accept user input, request identity, optional conversation identity, the resolved static agent configuration, and streaming preference. The controller validates the request, loads saved context, invokes the embedded Cloud Agents runner and finalizes history before the terminal result. Define its own payload bound and consume configuration before OGX inference serialization. Keep skill bytes outside the request.
 
-**Required implementation proof.** Prove the default run without a sandbox or allowedTools field succeeds through the SDK/OGX adapter. Also prove explicit tool filtering, [] denying all tools, optional sandbox provisioning/cleanup, two-turn context reuse and history linkage to the run. Confirm executor extension points before finalizing workflow JSON.
+**Required implementation proof.** Prove a spawn `none` run without an allowedTools field succeeds through the SDK/OGX adapter. Also prove explicit tool filtering, [] denying all tools, optional sandbox provisioning/cleanup, two-turn context reuse and history linkage to the run. Confirm executor extension points before finalizing workflow JSON.
 
 ## Conversation history data model
 
@@ -122,7 +122,7 @@ The current LCore metadata schema has user_conversation and user_turn tables. Co
 
 **Sandbox deployment.** The inspected harness supports the OpenShell spawner adapter. Deploy its gateway and approved worker image when ephemeral execution is configured. Supply gateway identity/TLS, fixed workspace and capacity, image pull access, network policy and cleanup monitoring. Do not expose sandbox/image overrides to chat users.
 
-**Startup order and health.** Apply migrations; start storage, OGX and required MCP/artifact services; start LCore; accept the static RHDH profile without rejecting missing model, skill or tool bindings. Start and check the sandbox gateway only for agents with sandboxing enabled. An agent with sandboxing disabled does not depend on spawner availability. Startup configuration publication remains a stretch goal.
+**Startup order and health.** Apply migrations; start storage, OGX and required MCP/artifact services; start LCore; accept the static RHDH profile without rejecting missing model, skill or tool bindings. Start and check the sandbox gateway only for agents whose spawn mode is or defaults to `ephemeral`. An agent with spawn `none` or `local` does not depend on spawner availability. Startup configuration publication remains a stretch goal.
 
 **RHDH work.** Build the native backend/common packages, frontend-facing adapter, static configuration resolver and model/MCP/skill/sandbox translation. Forward snapshot and turn requests, normalize streams, expose owner-scoped history and propagate cancellation.
 
@@ -130,6 +130,6 @@ The current LCore metadata schema has user_conversation and user_turn tables. Co
 
 **Cloud Agents work.** Verify the one-step schema and executor extension; carry capability/context bindings into the selected worker, apply static spawn policy, expose progress/cancellation and return answer plus run/cleanup evidence.
 
-**Acceptance gate.** Prove the intended single-agent profile with an explicit allowed tools list, default execution without a sandbox or allowedTools, and [] denying all tools. Verify missing model, skill and tool bindings pass configuration validation and unavailable capabilities report safe runtime failures when needed. Also prove optional sandbox lifecycle with no fallback on provisioning failure, one-agent enforcement, two-user isolation, continuation/restart with per-run configuration, no snapshot retention or transcript copying in main history, cancellation, truthful completion, and static/dynamic plugin installation. Startup synchronization and intermediate-output history storage are stretch goals, not MVP acceptance requirements.
+**Acceptance gate.** Prove the intended single-agent profile with an explicit allowed tools list, spawn `none` execution without allowedTools, omitted spawn resolving to the LCore default, and [] denying all tools. Verify missing model, skill and tool bindings pass configuration validation and unavailable capabilities report safe runtime failures when needed. Also prove optional sandbox lifecycle with no fallback on provisioning failure, one-agent enforcement, two-user isolation, continuation/restart with per-run configuration, no snapshot retention or transcript copying in main history, cancellation, truthful completion, and static/dynamic plugin installation. Startup synchronization and intermediate-output history storage are stretch goals, not MVP acceptance requirements.
 
 **Remaining decisions.** Pin versions and SDK executor interface; confirm exact snapshot/events schema and payload limit; confirm credential delivery and sandbox network/resource enforcement; finalize the history migration. These are implementation gates, not added discovery or approval features.

@@ -13,9 +13,9 @@ sequenceDiagram
   R->>L: POST /v1/agents/run with resolved static configuration
   L->>H: Load prior messages and create turn metadata
   L->>C: Build one-step workflow and invocation envelope
-  alt Sandbox enabled in agent configuration
+  alt Spawn ephemeral or omitted - LCore default
     C->>W: Provision configured sandbox worker
-  else Sandbox disabled or omitted by default
+  else Spawn none or local
     C->>W: Start agent execution without sandbox provisioning
   end
   W->>O: SDK inference and tools subject to optional filter

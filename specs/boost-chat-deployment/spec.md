@@ -15,14 +15,14 @@ The feature SHALL provide documented static backend registration and OCI dynamic
 ### Requirement: Install the configured LCore and Cloud Agents runtime
 The installation SHALL deploy a compatible dedicated LCore runtime with the Cloud Agents execution dependency, required SDK/OGX packages and PostgreSQL conversation/workflow stores using the backend-owned configuration and tested version/image combination. It SHALL apply the supplied database/storage, secret-reference and RBAC artifacts and install gateway/worker infrastructure only where sandbox-enabled agents require it. A separate Cloud Agents API service SHALL NOT be assumed necessary without an integration finding that requires it. Configuration authoring and credential-delivery setup SHALL remain owned by the backend workstream.
 
-#### Scenario: Deploy the default profile
+#### Scenario: Deploy an unsandboxed-only profile
 
-- **WHEN** the supported deployment contains no sandbox-enabled agent
+- **WHEN** every configured agent sets spawn "none" or "local"
 - **THEN** installation applies the backend-owned configuration and controller execution and persistent history operate without a live sandbox gateway dependency
 
 #### Scenario: Deploy a sandbox-enabled profile
 
-- **WHEN** an agent requires sandboxing
+- **WHEN** an agent sets spawn "ephemeral" or omits spawn while the LCore default is "ephemeral"
 - **THEN** installation applies the supplied gateway/worker and secret references and the actual worker can reach required services with the configured static permissions
 
 ### Requirement: Verify persistent rollout and operational behavior
@@ -49,7 +49,7 @@ Installation SHALL follow and verify the backend-owned database migration/startu
 - **THEN** the documented execution/history, permissions, secrets, restart and applicable sandbox checks pass from the issuing backend/worker
 
 ### Requirement: One consolidated installation and configuration guide
-Delivery SHALL include one RHDH-oriented installation and configuration guide covering package installation, tested LCore/Cloud Agents versions and images, database/migrations, service topology, frontend/backend wiring, agent examples, useSandbox defaults, runtime connections, secret creation/injection/forwarding/rotation, group RBAC, sandbox setup, startup/readiness, verification, rollback and troubleshooting. The guide SHALL document the configuration delivered by the backend workstream; configuration implementation SHALL NOT become a separate documentation or installation responsibility. This guide SHALL be maintained as one documentation task rather than split across separate backend, LCore and sandbox documentation tasks. It SHALL distinguish production requirements from development examples and identify the two stretch goals without making them installation prerequisites.
+Delivery SHALL include one RHDH-oriented installation and configuration guide covering package installation, tested LCore/Cloud Agents versions and images, database/migrations, service topology, frontend/backend wiring, agent examples, spawn modes and the omitted-spawn default, runtime connections, secret creation/injection/forwarding/rotation, group RBAC, sandbox setup, startup/readiness, verification, rollback and troubleshooting. The guide SHALL document the configuration delivered by the backend workstream; configuration implementation SHALL NOT become a separate documentation or installation responsibility. This guide SHALL be maintained as one documentation task rather than split across separate backend, LCore and sandbox documentation tasks. It SHALL distinguish production requirements from development examples and identify the two stretch goals without making them installation prerequisites.
 
 #### Scenario: Operator follows the guide
 
