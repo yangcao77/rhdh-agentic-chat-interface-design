@@ -1,12 +1,12 @@
 # RHDHPLAN 1644 design report
 
-RHDH 2.2 single agent MVP | 20 October 2026
+RHDH 2.2 single agent MVP | Clarified 28 October 2026
 
 ## Purpose and scope
 
 RHDHPLAN-1644 delivers the RHDH 2.2 chat execution boundary. RHDH owns static AI Catalog configuration and the native Boost frontend adapter. LCore owns the execution controller, the OGX/OpenAI Agents SDK integration and persistent conversation history. Cloud Agents executes a predefined one-agent workflow under LCore control.
 
-The MVP executes one agent with optional tool restrictions and optional sandboxing. Omitting allowedTools allows all tools available through the agent's configured tool/MCP bindings; an explicit list restricts them and an empty list allows none. Sandboxing defaults to disabled and can be enabled in static agent configuration. Model bindings, prompts, skills, MCP connections, limits and any sandbox settings are predefined. Runtime identifiers and the user query vary per turn; executable definitions and capabilities do not.
+The intended MVP profile executes one agent with an explicit allowed tools list. Omission of allowedTools remains valid and allows all tools available through the agent's configured tool/MCP bindings; an explicit list restricts them and an empty list allows none. Sandboxing defaults to disabled and can be enabled in static agent configuration. Model bindings, prompts, skills, MCP connections, limits and any sandbox settings are predefined by administrators. Runtime identifiers, including workflow run ID, and the user query vary per turn; executable definitions and capabilities do not.
 
 **Out of scope.** Agent discovery, human-in-the-loop interaction, cross-agent handoffs, multiple execution backends, generated workflow definitions and user/model changes to sandbox settings. A sandbox provisioned from a static profile is in scope; dynamically choosing its image or permissions is not.
 
@@ -16,19 +16,23 @@ The MVP executes one agent with optional tool restrictions and optional sandboxi
 
 ## Architecture and design decisions
 
-**D1 Native Boost packages.** Create plugins/boost-chat-backend and plugins/boost-chat-common. Use native Backstage authentication, permissions, Catalog, config, HTTP routing and lifecycle services. Common contains browser-safe request, event and history types plus shared validation contracts.
+**D1 Native RHDH plugin packages.** Create plugins/agentic-chat-backend and plugins/agentic-chat-common. Use native Backstage authentication, permissions, Catalog, config, HTTP routing and lifecycle services. Common contains browser-safe request, event and history types plus shared validation contracts.
 
 **D2 LCore execution ownership.** LCore receives authenticated turn requests at POST /v1/agents/run, validates the supplied run configuration, prepares context, dispatches Cloud Agents, enforces limits, normalizes events and returns the final response. RHDH forwards requests and streams; it does not run an agent loop.
 
-**D3 One backend for 2.2.** OGX with the OpenAI Agents SDK integration on the LCore side is the only execution backend. Cloud Agents provides workflow execution and configured sandbox lifecycle. There must be one SDK model/tool loop for the one agent step, not an SDK loop wrapped around another independent executor loop.
+**D3 Retain the AI Catalog agent configuration schema for 2.2.** RHDH AI Catalog agent definitions retain the current OpenAI Agents SDK integration schema. agentic-chat-backend sends the resolved agent snapshot to the LCore controller; LCore owns the SDK integration and workflow translation. Cloud Agents provides workflow execution and configured sandbox lifecycle. OGX is the only inference backend. There must be one SDK model/tool loop for the one agent step, not an SDK loop wrapped around another independent executor loop. No AI Catalog workflow-schema migration is required.
 
 **Integration gate.** Define the Cloud Agents executor interface that invokes the LCore-owned SDK adapter and carries streaming, cancellation, tool policy and context. The current workflow endpoint does not prove this bridge exists. Pin compatible package versions and prove one real execution before treating this as supported.
 
-**D4 LCore history.** LCore stores messages and agent/run attribution. Execution snapshots are not saved in conversation history or pinned to conversations. Cloud Agents transcripts are linked execution evidence, not a second independently replayed chat history. RHDH stores only necessary content-free identifiers and mappings.
+**D4 LCore chat history.** LCore stores messages and agent/run attribution. Execution snapshots are not saved in conversation history or pinned to conversations. Cloud Agents transcripts are linked execution evidence and are not stored as part of main chat history by default. RHDH stores only necessary content-free identifiers and mappings.
+
+**History stretch goal.** An option can store available intermediate execution output and thought-process traces as part of chat history. This is outside MVP acceptance and must preserve one authoritative context without duplicate transcript replay.
 
 **D5 Static configuration transfer.** RHDH owns static configuration and sends the resolved agent profile with every execution, including continued conversations. LCore constructs the Cloud Agents workflow. Startup synchronization using the same configuration contract is a stretch goal. Dynamic configuration changes, hot reload and change pickup are out of scope.
 
 **Failure boundary.** An omitted sandbox setting or allowedTools setting is valid. By default the agent runs without a sandbox and may use all available configured tools. Missing model, skill or tool bindings do not cause configuration rejection. If sandboxing is explicitly enabled, provisioning failure stops that run without silently changing its execution mode.
+
+Accepting missing bindings does not create capabilities or guarantee a successful run. Use administrator-defined defaults where available; if execution needs an unavailable model, skill or tool, report a safe runtime failure without inventing or substituting a binding.
 
 ## AI Catalog configuration and synchronization
 
@@ -38,11 +42,11 @@ The Boost configuration example defines agents under ai-catalog.entityProviders.
 
 **MVP root.** Select one predefined agent with no outgoing handoffs, for example the HR specialist in the example. The sample router with specialist dependencies is not an MVP execution profile. Reject a selected agent requiring handoffs; do not silently drop its targets or traverse the graph.
 
-**Configuration adapter.** Resolve the selected agent through authorized Catalog access. Preserve root identity, limits, prompt, concrete model, configured tools/MCP bindings, skill artifacts and required knowledge bindings. Preserve the difference between an omitted allowedTools field, a populated list and an empty list. Resolve sandbox enablement from static agent configuration, defaulting to disabled. Send the resolved profile to LCore for workflow construction.
+**Configuration adapter.** Resolve the selected agent through authorized Catalog access, retaining the current OpenAI Agents SDK integration schema. Preserve root identity, limits, prompt and available model, tools/MCP bindings, skill artifacts and required knowledge bindings. Preserve the difference between an omitted allowedTools field, a populated list and an empty list. Resolve sandbox enablement from static agent configuration, defaulting to disabled. Send the resolved profile to LCore for workflow construction without rejecting missing model, skill or tool bindings.
 
 **Configuration gaps.** Current agent entities do not carry provider-level defaultAgent and maxAgentTurns. Supply static profile bindings for root and limits, optional allowedTools, and optional sandbox enablement/settings. Skills, credentials and sandbox policy need declared schemas and executable bindings rather than assumed agent entity fields. Exact new field names remain a contract implementation gate.
 
-**Model resolution.** Resolve environment expressions in RHDH. Use the agent model when set, otherwise an explicit approved default. The adapter does not reject the agent solely because a model binding is absent. Send the concrete model and approved OGX connection binding, not environment syntax or browser-provided credentials.
+**Model resolution.** Resolve environment expressions in RHDH. Use the agent model when set, otherwise an explicit approved default where available. Neither RHDH nor LCore configuration validation rejects the agent solely because a model binding is absent. Send concrete bindings when available, not environment syntax or browser-provided credentials. If no usable model is available when inference is attempted, report a safe runtime failure.
 
 **Snapshot per execution.** Send input, conversation identity, request identity and the small resolved configuration snapshot with every run. LCore validates and uses it without saving it or a snapshot reference in conversation history. RHDH supplies the same static configuration on continuation or restart; LCore loads prior messages separately. Configuration refresh and change detection are out of scope. Current permission checks still apply.
 
@@ -78,7 +82,7 @@ LCore translates the selected profile into a deterministic one-step Cloud Agents
 
 The following is the adapter input checklist, not a claim that a complete executable workflow schema already exists. Finalize field names against the pinned Cloud Agents package before publishing an example as deployable configuration.
 
-**Definition identity.** Supported apiVersion and kind, deterministic workflow/profile ID, definition revision and exactly one agent step. Preserve the selected root agent reference. Use the supported one-step naming convention agent with output key result after schema verification.
+**Definition identity.** Supported apiVersion and kind, static profile/definition identity, definition revision and exactly one agent step. Preserve the selected root agent reference. Keep per-turn workflow run identity separate from the static definition. Use the supported one-step naming convention agent with output key result after schema verification.
 
 **Agent and inference.** Instructions, selected model, OGX connection/SDK runner binding, supported model settings, input/context mapping and expected output shape. Provider credentials are selected by LCore, not by caller-supplied secret selectors.
 
@@ -86,7 +90,7 @@ The following is the adapter input checklist, not a claim that a complete execut
 
 **Bounds and spawn.** One agent invocation per turn with model/tool/token/time limits. Sandbox enablement defaults to false. Image/spawner/resource/network/mount/cleanup settings apply only when enabled. Omission of sandbox settings is valid and requires no provisioning.
 
-**Invocation envelope.** User input, authenticated owner, conversation ID, request/turn ID, saved context and trace correlation. These are runtime values and must not alter the static executable definition. Distinguish the workflow run ID from the chat conversation ID.
+**Invocation envelope.** User input, authenticated owner, conversation ID, request/turn ID, workflow run ID, saved context and trace correlation. These are runtime values and must not alter the static executable definition. Distinguish the workflow run ID from both static definition identity and chat conversation ID; exact wire field names remain an integration gate.
 
 **Result contract.** Final answer mapping, normalized event stream, tool summaries, optional citations/artifact references, terminal outcome, cancellation signal and linkage to persistent execution evidence.
 
@@ -112,7 +116,7 @@ The current LCore metadata schema has user_conversation and user_turn tables. Co
 
 ## Installation deployment and delivery plan
 
-**RHDH installation.** Provide static backend registration and an OCI dynamic plugin package for boost-chat-backend. Publish boost-chat-common types. Configure LCore service URL, service authentication, static profile selection and configuration transfer mode. Register native permissions and wire the frontend chat/history client to the new routes.
+**RHDH installation.** Provide static backend registration and an OCI dynamic plugin package for agentic-chat-backend. Publish agentic-chat-common types. Configure LCore service URL, service authentication, static profile selection and configuration transfer mode. Register native permissions and wire the frontend chat/history client to the new routes.
 
 **LCore deployment.** Deploy a dedicated Boost LCore service with pinned OGX/OpenAI Agents SDK and Cloud Agents integration versions. Configure PostgreSQL, workflow state/transcript stores, trusted RHDH identity, approved model/MCP/artifact bindings, and the static spawner profile. A separate Cloud Agents API service is not required by this design.
 
@@ -126,6 +130,6 @@ The current LCore metadata schema has user_conversation and user_turn tables. Co
 
 **Cloud Agents work.** Verify the one-step schema and executor extension; carry capability/context bindings into the selected worker, apply static spawn policy, expose progress/cancellation and return answer plus run/cleanup evidence.
 
-**Acceptance gate.** Prove default execution without a sandbox or allowedTools, populated-list filtering and [] denying all tools. Also prove optional sandbox lifecycle, one-agent enforcement, two-user isolation, continuation/restart with per-run configuration, no snapshot retention in history, cancellation, truthful completion, and static/dynamic plugin installation.
+**Acceptance gate.** Prove the intended single-agent profile with an explicit allowed tools list, default execution without a sandbox or allowedTools, and [] denying all tools. Verify missing model, skill and tool bindings pass configuration validation and unavailable capabilities report safe runtime failures when needed. Also prove optional sandbox lifecycle with no fallback on provisioning failure, one-agent enforcement, two-user isolation, continuation/restart with per-run configuration, no snapshot retention or transcript copying in main history, cancellation, truthful completion, and static/dynamic plugin installation. Startup synchronization and intermediate-output history storage are stretch goals, not MVP acceptance requirements.
 
 **Remaining decisions.** Pin versions and SDK executor interface; confirm exact snapshot/events schema and payload limit; confirm credential delivery and sandbox network/resource enforcement; finalize the history migration. These are implementation gates, not added discovery or approval features.

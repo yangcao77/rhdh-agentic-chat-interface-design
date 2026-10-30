@@ -1,10 +1,10 @@
 ## Canonical Touchpoints
 
-No canonical documents are updated during design. Implementation will add target `workspaces/boost/specifications/adr/0001-chat-cloud-agents-lcore.md` and reconcile target Boost `specifications/CURRENT.md` and frontend architecture. No existing ADR was found at that target location. The six capability deltas in [proposal.md](./proposal.md) are archive candidates under `openspec/specs/`. No PRD update is proposed.
+No canonical documents are updated during design. Implementation will add target `workspaces/boost/specifications/adr/0001-chat-cloud-agents-lcore.md` and reconcile target Boost `specifications/CURRENT.md` and frontend architecture. No existing ADR was found at that target location. The three capability deltas in [proposal.md](./proposal.md) are archive candidates under `openspec/specs/`. No PRD update is proposed.
 
 ## Context
 
-RHDHPLAN-1644 is scoped on 2026-10-20 to the RHDH 2.2 static single-agent MVP. The [design report](./design-report-1644.md) provides the complete configuration, execution, history and deployment design. [Research](./explore.md) separates inspected foundations from proposed integration work.
+RHDHPLAN-1644 is scoped to the RHDH 2.2 static single-agent MVP, clarified on 2026-10-28. The [design report](./design-report-1644.md) provides the complete configuration, execution, history and deployment design. [Research](./explore.md) separates inspected foundations from proposed integration work.
 
 ## Goals / Non-Goals
 
@@ -14,31 +14,35 @@ RHDHPLAN-1644 is scoped on 2026-10-20 to the RHDH 2.2 static single-agent MVP. T
 
 ## Decisions
 
-### D1 Native Boost backend and common packages
+### D1 Native RHDH plugin packages
 
-Use new `boost-chat-backend` and browser-safe `boost-chat-common` packages, working plugin ID `boost-chat` and `/api/boost-chat` routes. RHDH authenticates, authorizes, resolves static configuration and proxies execution/history. Use native Backstage services and schema-driven Node contracts. It does not run the SDK loop.
+Create `plugins/agentic-chat-backend` and browser-safe `plugins/agentic-chat-common`, retaining working plugin ID `boost-chat` and `/api/boost-chat` routes. RHDH owns the native Boost frontend adapter, authenticates, authorizes, resolves static configuration and proxies execution/history. Use native Backstage authentication, permissions, Catalog, config, HTTP routing and lifecycle services. Common contains browser-safe request, event and history types plus shared validation contracts. RHDH does not run the SDK loop.
 
 ### D2 LCore controller and Cloud Agents execution
 
-LCore hosts the execution/handoff controller. The 2.2 mode dispatches exactly one agent and rejects cross-agent transfers before another invocation starts. Embed Cloud Agents as an execution dependency. The only backend is OGX with an OpenAI Agents SDK adapter owned by the LCore integration. Implement a Cloud Agents step executor that uses that adapter, sharing context, allowlists, events and cancellation; do not nest independent agent loops. Pin and prove this extension interface rather than assuming endpoint availability proves compatibility.
+LCore hosts the execution/handoff controller. The 2.2 mode dispatches exactly one agent and rejects cross-agent transfers before another invocation starts. Embed Cloud Agents as an execution dependency. Implement a Cloud Agents step executor that uses that adapter, sharing context, allowlists, events and cancellation; do not nest independent agent loops. Pin and prove this extension interface rather than assuming endpoint availability proves compatibility.
 
 ### D3 Static AI Catalog configuration and snapshots
 
-RHDH selects one predefined `AiResource` with no handoffs, not a discovered or dynamically assembled graph. Resolve its prompt/model, configured tools/MCP bindings, skills, knowledge, limits, optional allowedTools and optional sandbox settings. Missing allowedTools allows all available configured tools; missing sandbox enablement means no sandbox. Neither omission is an error. Preserve root identity; reject required unsupported configuration. The reference configuration contains multi-agent examples; those routers are not MVP profiles. Provider-level root/limit fields are absent from current agent entities and need explicit static profile bindings.
+Retain the current AI Catalog agent configuration schema for the OpenAI Agents SDK integration in 2.2. RHDH selects one predefined `AiResource` with no handoffs, not a discovered or dynamically assembled graph. Resolve its configured prompt/model, tools/MCP bindings, skills, knowledge, limits, optional allowedTools and optional sandbox settings into the snapshot sent by agentic-chat-backend. LCore owns SDK integration and Cloud Agents workflow translation; do not require an AI Catalog workflow-schema migration. The intended MVP profile supplies an explicit allowed tools list, but omission remains valid and allows all available configured tools. Missing sandbox enablement means no sandbox. Missing model, skill or tool bindings do not reject configuration. Preserve root identity and reject unsupported handoffs or caller overrides. The reference configuration contains multi-agent examples; those routers are not MVP profiles. Provider-level root/limit fields are absent from current agent entities and need explicit static profile bindings.
+
+Add optional boolean `spec.useSandbox` to the existing agent schema and preserve it through Catalog ingestion. Omission resolves to false; true selects an administrator-predefined sandbox profile. LCore translates this flag explicitly rather than inheriting the workflow executor's spawn default.
+
+Resolve a model from the agent or an explicit administrator default when available. Missing bindings alone are accepted by both RHDH and LCore validation, without inventing a model, skill, tool or connection. If execution needs an unavailable capability, report a safe runtime failure. Enabled sandbox provisioning failure stops that run without changing execution mode.
 
 Send the resolved static agent configuration with every execution, including continuation and restart. LCore uses it for that run without saving the snapshot or a reference in conversation history, and loads prior messages independently. Startup configuration synchronization is a stretch goal using the same contract. Dynamic reload, change detection and configuration pickup are out of scope. Credential bindings resolve server-side.
 
 ### D4 One-step workflow contract
 
-RHDH sends the resolved agent profile; LCore translates it into one supported Cloud Agents agent step with model/SDK adapter, instructions, configured tools/MCP bindings, optional allowedTools, skills, limits, context/output mapping and optional sandbox settings. Preserve omitted allowedTools versus an explicit empty list and default sandboxing to disabled. Keep per-turn owner/input/request/conversation IDs in the invocation envelope. The selected step name `agent` and output `result` follow the inspected request documentation and must be verified against the pinned package schema. The report provides the required field checklist.
+RHDH sends the resolved agent profile; LCore translates it into one supported Cloud Agents agent step with available model/SDK adapter, instructions, configured tools/MCP bindings, optional allowedTools, skills, limits, context/output mapping and optional sandbox settings. Preserve omitted allowedTools versus an explicit empty list and default sandboxing to disabled. Keep per-turn workflow run ID, owner/input/request/conversation IDs in the invocation envelope; executable definitions and capabilities remain administrator-predefined. The selected step name `agent` and output `result` follow the inspected request documentation and must be verified against the pinned package schema. The report provides the required field checklist.
 
-Add a new LCore `POST /v1/agents/run` endpoint for the execution controller. Its typed request carries user input, request identity, the static execution snapshot, and streaming preference. Field names remain a versioned contract to finalize. The controller validates identity/configuration, loads conversation context, dispatches one Cloud Agents step, streams correlated events, and finalizes persistent history before returning the terminal result. Use the embedded runner directly; an internal workflow is the execution representation. Define dedicated request/response/event models and a bounded payload limit. Keep artifact bytes outside the request and consume configuration before constructing OGX inference calls. This change adds a controller API and requires no change to the existing inference endpoint contract.
+Add a new LCore `POST /v1/agents/run` endpoint for the execution controller. Its typed request carries user input, request identity, the static execution snapshot, and streaming preference. Field names remain a versioned contract to finalize. The controller validates identity/configuration, loads conversation context, dispatches one Cloud Agents step, streams correlated events, and finalizes persistent history before returning the terminal result. Dispatch workflow creation through `POST /v1/workflows/run` or its shared authenticated submission service, preserving workflow validation, authorization and credential rules; an internal workflow is the execution representation. Define dedicated request/response/event models and a bounded payload limit. Keep artifact bytes outside the request and consume configuration before constructing OGX inference calls. This change adds a controller API and requires no change to the existing inference endpoint contract.
 
 ### D5 Allowed tools and capability access
 
 When allowedTools is omitted, all tools available through the agent's configured tool/MCP bindings are allowed without an extra agent-level filter. When supplied, enforce the list at actual SDK/tool dispatch; [] allows no tools. Existing deployment policy and user authorization still apply. Preserve omission versus empty-list semantics through the adapter and worker transport. Skill instructions cannot bypass a supplied filter. Allowed actions execute automatically; approval-dependent flows are unsupported.
 
-LCore/worker connections require approved runtime-reachable endpoints, transport, TLS and backend authentication. Materialize immutable skill artifacts into the execution filesystem and map knowledge flags to real retrieval bindings. RHDH filesystem/network access does not imply worker access. No secrets in snapshots, routine traces or history.
+LCore/worker connections require approved runtime-reachable endpoints, transport, TLS and backend authentication. Materialize configured immutable skill artifacts into the execution filesystem and map knowledge flags to real retrieval bindings. Missing model, skill or tool bindings alone do not reject configuration; unavailable capabilities cannot be invented or used. RHDH filesystem/network access does not imply worker access. No secrets in snapshots, routine traces or history.
 
 ### D6 Static sandbox spawning
 
@@ -52,16 +56,17 @@ Extend current `user_conversation` with nullable agent reference/name, execution
 
 Use one authoritative context assembly, one logical user/final assistant turn, request-id idempotency and one active turn per conversation. Finalize history before terminal success. Ownership applies to list/reopen/continue/cancel/delete and linked run evidence. Production uses PostgreSQL, including the current workflow stores; broader local storage modes are not MVP promises.
 
+Cloud Agents transcripts remain linked execution evidence and are not stored as main chat history by default. An option to include available intermediate execution output or thought-process traces in chat history is a stretch goal, outside MVP acceptance. It must not duplicate context replay or store execution configuration in history.
+
 ### D8 Installation and deployment
 
-Ship static and OCI dynamic Boost backend installation plus common contracts. Deploy dedicated Boost LCore with pinned SDK/Cloud Agents/OGX dependencies, PostgreSQL and static inference/MCP/artifact/spawner configuration. Cloud Agents is embedded; sandbox workers and its gateway are deployed when the profile requires them. Readiness validates the selected configuration mode and required runtime reachability. Disablement preserves history; additive database migrations preserve legacy clients.
+Ship static and OCI dynamic agentic-chat-backend installation plus agentic-chat-common contracts. Deploy dedicated Boost LCore with pinned SDK/Cloud Agents/OGX dependencies, PostgreSQL and static inference/MCP/artifact/spawner configuration. Cloud Agents is embedded; sandbox workers and its gateway are deployed when the profile requires them. Readiness checks service dependencies and configured runtime connections without rejecting a profile solely for missing model, skill or tool bindings. Disablement preserves history; additive database migrations preserve legacy clients.
 
 ## Diagrams
 
 - [Architecture](./diagrams/architecture.md)
 - [Single agent workflow](./diagrams/single-agent-workflow.md)
 - [Request sequence](./diagrams/chat-sequence.md)
-- [Execution lifecycle](./diagrams/execution-lifecycle.md)
 
 ## Risks / Trade-offs
 
@@ -74,4 +79,4 @@ Ship static and OCI dynamic Boost backend installation plus common contracts. De
 
 ## Remaining implementation decisions
 
-[open-question.md](./open-question.md) records version/interface, exact API, credential, sandbox policy and history migration gates. Architecture and 2.2 scope are selected; no application code is implemented by this revision.
+Version/interface, exact API, credential, sandbox policy and history migration choices remain implementation gates described in the [design report](./design-report-1644.md). Architecture and 2.2 scope are selected; startup synchronization and optional intermediate-output history storage remain stretch goals. No application code is implemented by this revision.

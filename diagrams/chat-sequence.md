@@ -3,11 +3,11 @@
 ```mermaid
 sequenceDiagram
   participant UI as Boost frontend
-  participant R as RHDH Boost backend
+  participant R as RHDH agentic-chat-backend
   participant L as LCore controller
   participant C as Cloud Agents
   participant W as Agent execution worker
-  participant O as OGX and configured MCP tools
+  participant O as LLM and configured tools
   participant H as LCore history
   UI->>R: Query conversation and request ID
   R->>L: POST /v1/agents/run with resolved static configuration
@@ -30,5 +30,3 @@ sequenceDiagram
   L-->>R: Saved final answer or safe failure
   R-->>UI: Terminal outcome
 ```
-
-Missing sandbox settings selects execution without sandbox provisioning. Neither omission is an error.
